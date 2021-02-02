@@ -6,6 +6,7 @@
 #include "aio.h"
 #include "Caio.h"
 #include "theadsafe_queue.h"
+#include <chrono>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -29,7 +30,7 @@ long	AiEventCount;
 //Retrieved total number of samplings
 long	AiTotalSamplingTimes;
 codepi::ThreadSafeQueue<float> q;
-
+codepi::ThreadSafeQueue<double> q_time;
 // 唯一的应用程序对象
 
 CWinApp theApp;
@@ -69,6 +70,7 @@ int main()
 
 static long CALLBACK test_cb(short Id, short AiEvent, WPARAM wParam, LPARAM lParam, void* Param)
 {
+    double stamp;
     switch (AiEvent)
     {
     case AIOM_AIE_DATA_NUM:
@@ -78,6 +80,9 @@ static long CALLBACK test_cb(short Id, short AiEvent, WPARAM wParam, LPARAM lPar
         }
         //Get the converted data
         Ret = AioGetAiSamplingDataEx(Id, (long*)&lParam, &AiData[0]);
+        std::chrono::system_clock::duration d = std::chrono::system_clock::now().time_since_epoch();
+        std::chrono::nanoseconds nan = std::chrono::duration_cast<std::chrono::nanoseconds>(d);
+        stamp = nan.count() / 1000000000.0;
         if (Ret != 0) {
             Ret2 = AioGetErrorString(Ret, ErrorString);
             wsprintf(szErrorString, _T("%S"), ErrorString);
@@ -87,9 +92,11 @@ static long CALLBACK test_cb(short Id, short AiEvent, WPARAM wParam, LPARAM lPar
         for (int i = 0; i < lParam; i++)
         {
             q.enqueue(AiData[i]);
+            q_time.enqueue(stamp);
         }
 
         return 1;
+        break;
     default:
         return 1;
     }
@@ -100,11 +107,12 @@ void get_available_buffer_size(int *length)
     *length = q.size();
 }
 
-void get_buffer(int num, float* data)
+void get_buffer(int num, float* data, double &stamp)
 {
     for (int i = 0; i < num; i++)
     {
         data[i] = q.dequeue();
+        stamp = q_time.dequeue();
     }
 }
 //
@@ -130,7 +138,7 @@ long aio_start()
         Ret2 = AioGetErrorString(Ret, ErrorString);
         wsprintf(szErrorString, _T("%S"), ErrorString);
         printf(ErrorString);
-        return 1;
+        return Ret;
     }
 
     q.clear();
@@ -140,9 +148,23 @@ long aio_start()
         Ret2 = AioGetErrorString(Ret, ErrorString);
         wsprintf(szErrorString, _T("%S"), ErrorString);
         printf(ErrorString);
+        return Ret;
+    }
+    return 1;
+}
+
+long aio_stop()
+{
+    Ret = AioStopAi(Id);
+    if (Ret != 0) {
+        Ret2 = AioGetErrorString(Ret, ErrorString);
+        wsprintf(szErrorString, _T("%S"), ErrorString);
+        printf(ErrorString);
         return 1;
     }
-    return 0;
+
+    q.clear();
+    return 1;
 }
 
 long aio_init(char *dev_name, float delta, short range, long simple_times)

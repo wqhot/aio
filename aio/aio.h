@@ -25,7 +25,8 @@ extern "C"
 {
 	__declspec(dllexport) long aio_init(char* dev_name, float delta, short range, long simple_times);
 	__declspec(dllexport) void get_available_buffer_size(int* length);
-	__declspec(dllexport) void get_buffer(int num, float* data);
+	__declspec(dllexport) void get_buffer(int num, float* data, double& stamp);
 	__declspec(dllexport) int exit_aio();
 	__declspec(dllexport) long aio_start();
+	__declspec(dllexport) long aio_stop();
 }
